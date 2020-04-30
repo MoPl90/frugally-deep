@@ -98,6 +98,7 @@ public:
     fplus::maybe<std::size_t> width_;
     fplus::maybe<std::size_t> depth_;
 
+
 private:
     std::size_t rank_;
 };

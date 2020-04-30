@@ -29,6 +29,7 @@
 #include "fdeep/layers/add_layer.hpp"
 #include "fdeep/layers/average_layer.hpp"
 #include "fdeep/layers/average_pooling_2d_layer.hpp"
+#include "fdeep/layers/average_pooling_3d_layer.hpp"
 #include "fdeep/layers/batch_normalization_layer.hpp"
 #include "fdeep/layers/bidirectional_layer.hpp"
 #include "fdeep/layers/concatenate_layer.hpp"
@@ -227,6 +228,13 @@ inline shape2 create_shape2(const nlohmann::json& data)
         const std::size_t width = data;
         return shape2(1, width);
     }
+}
+
+inline shape3 create_shape3(const nlohmann::json& data)
+{
+    assertion(data.size() == 3,
+        "invalid number of dimensions in shape2");
+    return shape3(data[0], data[1], data[2]);
 }
 
 inline std::size_t create_size_t(const nlohmann::json& int_data)
@@ -517,6 +525,20 @@ inline layer_ptr create_average_pooling_2d_layer(
 
     const auto pad_type = create_padding(padding_str);
     return std::make_shared<average_pooling_2d_layer>(name,
+        pool_size, strides, channels_first, pad_type);
+}
+
+inline layer_ptr create_average_pooling_3d_layer(
+    const get_param_f&, const nlohmann::json& data,
+    const std::string& name)
+{
+    const auto pool_size = create_shape3(data["config"]["pool_size"]);
+    const auto strides = create_shape3(data["config"]["strides"]);
+    const bool channels_first = json_object_get(data["config"], "data_format", std::string("channels_last")) == "channels_first";
+    const std::string padding_str = data["config"]["padding"];
+
+    const auto pad_type = create_padding(padding_str);
+    return std::make_shared<average_pooling_3d_layer>(name,
         pool_size, strides, channels_first, pad_type);
 }
 
@@ -1075,6 +1097,7 @@ inline layer_ptr create_layer(const get_param_f& get_param,
             {"MaxPooling2D", create_max_pooling_2d_layer},
             {"AveragePooling1D", create_average_pooling_2d_layer},
             {"AveragePooling2D", create_average_pooling_2d_layer},
+            {"AveragePooling3D", create_average_pooling_3d_layer},
             {"GlobalMaxPooling1D", create_global_max_pooling_1d_layer},
             {"GlobalMaxPooling2D", create_global_max_pooling_2d_layer},
             {"GlobalAveragePooling1D", create_global_average_pooling_1d_layer},

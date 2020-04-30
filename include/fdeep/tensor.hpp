@@ -73,6 +73,29 @@ public:
         }
         return get(tensor_pos(y, static_cast<std::size_t>(x), static_cast<std::size_t>(z)));
     }
+    float_type get_dim4_y_x_padded(float_type pad_value,
+        int dim4, int y, int x, std::size_t z) const
+    {
+        if (dim4 < 0 || dim4 >= static_cast<int>(shape().size_dim_4_) ||
+            y < 0 || y >= static_cast<int>(shape().height_) ||
+            x < 0 || x >= static_cast<int>(shape().width_))
+        {
+            return pad_value;
+        }
+        return get(tensor_pos(static_cast<std::size_t>(dim4), static_cast<std::size_t>(y), static_cast<std::size_t>(x), z));
+    }
+    float_type get_y_x_z_padded(float_type pad_value,
+        std::size_t dim4, int y, int x, int z) const
+    {
+        if (y < 0 || y >= static_cast<int>(shape().height_) ||
+            x < 0 || x >= static_cast<int>(shape().width_) ||
+            z < 0 || z >= static_cast<int>(shape().depth_))
+        {
+            return pad_value;
+        }
+        return get(tensor_pos(dim4, static_cast<std::size_t>(y), static_cast<std::size_t>(x), static_cast<std::size_t>(z)));
+    }
+
     void set(const tensor_pos& pos, float_type value)
     {
         (*values_)[idx(pos)] = value;
@@ -109,6 +132,14 @@ public:
     const tensor_shape& shape() const
     {
         return shape_;
+    }
+    std::size_t dim5() const
+    {
+        return shape().size_dim_5_;
+    }
+    std::size_t dim4() const
+    {
+        return shape().size_dim_4_;
     }
     std::size_t depth() const
     {
@@ -656,6 +687,34 @@ inline tensor pad_tensor(float_type val,
     return result;
 }
 
+inline tensor pad_tensor3D(float_type val,
+    std::size_t top_pad, std::size_t bottom_pad,
+    std::size_t left_pad, std::size_t right_pad,
+    std::size_t front_pad, std::size_t back_pad,
+    const tensor& in)
+{
+    tensor result(tensor_shape_with_changed_rank(tensor_shape(
+        in.shape().size_dim_4_ + top_pad + bottom_pad,
+        in.shape().height_ + left_pad + right_pad,
+        in.shape().width_ + front_pad + back_pad,
+        in.shape().depth_), in.shape().rank()), val);
+    for (std::size_t dim4 = 0; dim4 < in.shape().size_dim_4_; ++dim4)
+    {
+        for (std::size_t y = 0; y < in.shape().height_; ++y)
+        {
+            for (std::size_t x = 0; x < in.shape().width_; ++x)
+            {
+                for (std::size_t z = 0; z < in.shape().depth_; ++z)
+                {
+                    result.set_ignore_rank(tensor_pos(dim4 + top_pad, y + left_pad, x + front_pad, z),
+                        in.get_ignore_rank(tensor_pos(dim4, y, x, z)));
+                }
+            }
+        }
+    }
+    return result;
+}
+
 inline void check_permute_tensor_dims(const std::vector<std::size_t>& dims_raw)
 {
     assertion(
@@ -902,28 +961,34 @@ inline std::string show_tensors(const tensors& ts)
 // Example:
 //     With low = 0.0 and high = 1.0 every value is essentially divided by 255.
 // May be used to convert an image (bgr, rgba, gray, etc.) to a tensor.
-inline tensor tensor_from_bytes(const std::uint8_t* value_ptr,
+inline tensor tensor_from_bytes(const std::uint16_t* value_ptr,
     std::size_t height, std::size_t width, std::size_t channels,
+    std::size_t depth = 1,
     internal::float_type low = 0.0f, internal::float_type high = 1.0f)
 {
-    const std::vector<std::uint8_t> bytes(
-        value_ptr, value_ptr + height * width * channels);
+    const std::vector<std::uint16_t> bytes(
+        value_ptr, value_ptr + height * width * depth * channels);
     auto values = fplus::transform_convert<float_vec>(
-        [low, high](std::uint8_t b) -> internal::float_type
+        [low, high](std::uint16_t b) -> internal::float_type
     {
         return fplus::reference_interval(low, high,
             static_cast<float_type>(0.0f),
-            static_cast<float_type>(255.0f),
+            static_cast<float_type>(65635.0f),
             static_cast<internal::float_type>(b));
     }, bytes);
-    return tensor(tensor_shape(height, width, channels), std::move(values));
+    if (depth == 1)
+    {
+        return tensor(tensor_shape(height, width, channels), std::move(values));
+    }
+    else
+        return tensor(tensor_shape(height, width, depth, channels), std::move(values));
 }
 
 // Converts a tensor into a memory block holding 8-bit values.
 // Data will be stored row-wise (and channels_last).
 // Scales the values from range [low, high] into [0, 255].
 // May be used to convert a tensor into an image.
-inline void tensor_into_bytes(const tensor& t, std::uint8_t* value_ptr,
+inline void tensor_into_bytes(const tensor& t, std::uint16_t* value_ptr,
     std::size_t bytes_available,
     internal::float_type low = 0.0f, internal::float_type high = 1.0f)
 {
@@ -931,12 +996,12 @@ inline void tensor_into_bytes(const tensor& t, std::uint8_t* value_ptr,
     internal::assertion(bytes_available == values->size(),
     "invalid buffer size");
     const auto bytes = fplus::transform(
-        [low, high](internal::float_type v) -> std::uint8_t
+        [low, high](internal::float_type v) -> std::uint16_t
     {
-        return fplus::round<internal::float_type, std::uint8_t>(
+        return fplus::round<internal::float_type, std::uint16_t>(
             fplus::reference_interval(
                 static_cast<float_type>(0.0f),
-                static_cast<float_type>(255.0f), low, high, v));
+                static_cast<float_type>(65635.0f), low, high, v));
     }, *values);
     for (std::size_t i = 0; i < values->size(); ++i)
     {
@@ -947,10 +1012,10 @@ inline void tensor_into_bytes(const tensor& t, std::uint8_t* value_ptr,
 // Converts a tensor into a vector of bytes.
 // Data will be stored row-wise (and channels_last).
 // Scales the values from range [low, high] into [0, 255].
-inline std::vector<std::uint8_t> tensor_to_bytes(const tensor& t,
+inline std::vector<std::uint16_t> tensor_to_bytes(const tensor& t,
     internal::float_type low = 0.0f, internal::float_type high = 1.0f)
 {
-    std::vector<std::uint8_t> bytes(t.shape().volume(), 0);
+    std::vector<std::uint16_t> bytes(t.shape().volume(), 0);
     tensor_into_bytes(t, bytes.data(), bytes.size(), low, high);
     return bytes;
 }

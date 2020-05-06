@@ -111,10 +111,23 @@ public:
             "Only height, width and depth may be not equal 1.");
     }
 
+    void assert_is_shape_4() const
+    {
+        assertion(
+            size_dim_5_ == 1,
+            "Only dim4, height, width and depth may be not equal 1.");
+    }
+    
     shape2 without_depth() const
     {
         assert_is_shape_3();
         return shape2(height_, width_);
+    }
+    
+    shape3 shape3_without_depth() const
+    {
+        assert_is_shape_4();
+        return shape3(size_dim_4_, height_, width_);
     }
 
     std::size_t rank() const
@@ -289,6 +302,26 @@ inline tensor_shape dilate_tensor_shape(
         s.rank()
     );
 }
+
+inline tensor_shape dilate_tensor_shape(
+    const shape3& dilation_rate, const tensor_shape& s)
+{
+    assertion(dilation_rate.height_ >= 1, "invalid dilation rate");
+    assertion(dilation_rate.width_ >= 1, "invalid dilation rate");
+    assertion(dilation_rate.depth_ >= 1, "invalid dilation rate");
+
+    const std::size_t height = s.size_dim_4_ +
+        (s.size_dim_4_ - 1) * (dilation_rate.height_ - 1);
+    const std::size_t width = s.height_ +
+        (s.height_ - 1) * (dilation_rate.width_ - 1);
+    const std::size_t depth = s.width_ +
+        (s.width_ - 1) * (dilation_rate.depth_ - 1);
+    return tensor_shape_with_changed_rank(
+        tensor_shape(s.size_dim_5_, height, width, depth, s.depth_),
+        s.rank()
+    );
+}
+
 
 inline std::size_t get_tensor_shape_dimension_by_index(const tensor_shape& s,
     const std::size_t idx)

@@ -8,13 +8,14 @@
 
 #include "fdeep/layers/pooling_3d_layer.hpp"
 
+#include <algorithm>
 #include <limits>
 #include <string>
 
 namespace fdeep { namespace internal
 {
 
-FDEEP_FORCE_INLINE tensor average_pool_3d(
+FDEEP_FORCE_INLINE tensor max_pool_3d(
     std::size_t pool_height, std::size_t pool_width, std::size_t pool_depth,
     std::size_t strides_y, std::size_t strides_x, std::size_t strides_z,
     bool channels_first,
@@ -68,8 +69,7 @@ FDEEP_FORCE_INLINE tensor average_pool_3d(
                 {
                     for (std::size_t z = 0; z < out_depth; ++z)
                     {
-                        float_type val = 0;
-                        std::size_t divisor = 0;
+                        float_type val = std::numeric_limits<float_type>::lowest();
                         for (std::size_t yf = 0; yf < pool_height; ++yf)
                         {
                             int in_get_y = static_cast<int>(strides_y * y + yf) - pad_top_int;
@@ -80,15 +80,12 @@ FDEEP_FORCE_INLINE tensor average_pool_3d(
                                 {
                                     int in_get_z = static_cast<int>(strides_z * z + zf) - pad_front_int;
                                     const auto current = in.get_y_x_z_padded(invalid, f, in_get_y, in_get_x, in_get_z);
-                                    if (current != invalid)
-                                    {
-                                        val += current;
-                                        divisor += 1;
-                                    }
+                                    
+                                    val = std::max(val, current);
                                 }
                             }
                         }
-                        out.set(tensor_pos(f, y, x, z), val / static_cast<float_type>(divisor));
+                        out.set(tensor_pos(f, y, x, z), val);
                     }
                 }
             }
@@ -111,8 +108,7 @@ FDEEP_FORCE_INLINE tensor average_pool_3d(
                 {
                     for (std::size_t f = 0; f <feature_count; ++f)
                     {
-                        float_type val = 0.;
-                        std::size_t divisor = 0;
+                        float_type val = std::numeric_limits<float_type>::lowest();
                         for (std::size_t yf = 0; yf < pool_height; ++yf)
                         {
                             int in_get_y = static_cast<int>(strides_y * y + yf) - pad_top_int;
@@ -123,15 +119,11 @@ FDEEP_FORCE_INLINE tensor average_pool_3d(
                                 {
                                     int in_get_z = static_cast<int>(strides_z * z + zf) - pad_front_int;
                                     const auto current = in.get_dim4_y_x_padded(invalid, in_get_y, in_get_x, in_get_z, f);
-                                    if (current != invalid)
-                                    {
-                                        val += current;
-                                        divisor += 1;
-                                    }
+                                    val = std::max(val, current);
                                 }
                             }
                         }
-                        out.set_ignore_rank(tensor_pos(y, x, z, f), val / static_cast<float_type>(divisor));
+                        out.set_ignore_rank(tensor_pos(y, x, z, f), val );
                     }
                 }
             }
@@ -140,10 +132,10 @@ FDEEP_FORCE_INLINE tensor average_pool_3d(
     }
 }
 
-class average_pooling_3d_layer : public pooling_3d_layer
+class max_pooling_3d_layer : public pooling_3d_layer
 {
 public:
-    explicit average_pooling_3d_layer(const std::string& name,
+    explicit max_pooling_3d_layer(const std::string& name,
         const shape3& pool_size, const shape3& strides, bool channels_first,
         padding p) :
         pooling_3d_layer(name, pool_size, strides, channels_first, p)
@@ -151,14 +143,13 @@ public:
     }
 protected:
     tensor pool(const tensor& in) const override
-    
     {
         if (pool_size_ == shape3(2, 2, 2) && strides_ == shape3(2, 2, 2))
-            return average_pool_3d(2, 2, 2, 2, 2, 2, channels_first_, padding_, in);
+            return max_pool_3d(2, 2, 2, 2, 2, 2, channels_first_, padding_, in);
         else if (pool_size_ == shape3(4, 4, 4) && strides_ == shape3(4, 4, 4))
-            return average_pool_3d(4, 4, 4, 4, 4, 4, channels_first_, padding_, in);
+            return max_pool_3d(4, 4, 4, 4, 4, 4, channels_first_, padding_, in);
         else
-            return average_pool_3d(
+            return max_pool_3d(
                 pool_size_.height_, pool_size_.width_, pool_size_.depth_,
                 strides_.height_, strides_.width_, strides_.depth_,
                 channels_first_, padding_, in);

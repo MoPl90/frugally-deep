@@ -97,4 +97,46 @@ inline filter_vec generate_filters(
     return filters;
 }
 
+
+
+inline filter dilate_filter(const shape3& dilation_rate, const filter& undilated)
+{
+    return filter(dilate_tensor(dilation_rate, undilated.get_tensor()),
+        undilated.get_bias());
+}
+
+
+inline filter_vec generate_filters(
+    const shape3& dilation_rate,
+    const tensor_shape& filter_shape, std::size_t k,
+    const float_vec& weights, const float_vec& bias)
+{
+    filter_vec filters(k, filter(tensor(filter_shape, 0), 0));
+
+    assertion(!filters.empty(), "at least one filter needed");
+    const std::size_t param_count = fplus::sum(fplus::transform(
+        fplus_c_mem_fn_t(filter, volume, std::size_t), filters));
+
+    assertion(static_cast<std::size_t>(weights.size()) == param_count,
+        "invalid weight size");
+    const auto filter_param_cnt = filters.front().shape().volume();
+
+    auto filter_weights =
+        fplus::split_every(filter_param_cnt, weights);
+    assertion(filter_weights.size() == filters.size(),
+        "invalid size of filter weights");
+    assertion(bias.size() == filters.size(), "invalid bias size");
+    auto it_filter_val = std::begin(filter_weights);
+    auto it_filter_bias = std::begin(bias);
+    for (auto& filt : filters)
+    {
+        filt.set_params(*it_filter_val, *it_filter_bias);
+        filt = dilate_filter(dilation_rate, filt);
+        ++it_filter_val;
+        ++it_filter_bias;
+    }
+
+    return filters;
+}
+
 } } // namespace fdeep, namespace internal

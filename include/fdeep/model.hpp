@@ -254,7 +254,7 @@ inline void cout_logger(const std::string& str)
 inline model read_model(std::istream& model_file_stream,
     bool verify = true,
     const std::function<void(std::string)>& logger = cout_logger,
-    float_type verify_epsilon = static_cast<float_type>(0.0001),
+    float_type verify_epsilon = static_cast<float_type>(0.001),
     const internal::layer_creators& custom_layer_creators = internal::layer_creators())
 {
     const auto log = [&logger](const std::string& msg)

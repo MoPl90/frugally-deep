@@ -34,6 +34,7 @@
 #include "fdeep/layers/bidirectional_layer.hpp"
 #include "fdeep/layers/concatenate_layer.hpp"
 #include "fdeep/layers/conv_2d_layer.hpp"
+#include "fdeep/layers/conv_3d_layer.hpp"
 #include "fdeep/layers/cropping_2d_layer.hpp"
 #include "fdeep/layers/dense_layer.hpp"
 #include "fdeep/layers/depthwise_conv_2d_layer.hpp"
@@ -54,10 +55,12 @@
 #include "fdeep/layers/prelu_layer.hpp"
 #include "fdeep/layers/linear_layer.hpp"
 #include "fdeep/layers/max_pooling_2d_layer.hpp"
+#include "fdeep/layers/max_pooling_3d_layer.hpp"
 #include "fdeep/layers/maximum_layer.hpp"
 #include "fdeep/layers/model_layer.hpp"
 #include "fdeep/layers/multiply_layer.hpp"
 #include "fdeep/layers/pooling_2d_layer.hpp"
+#include "fdeep/layers/pooling_3d_layer.hpp"
 #include "fdeep/layers/relu_layer.hpp"
 #include "fdeep/layers/reshape_layer.hpp"
 #include "fdeep/layers/separable_conv_2d_layer.hpp"
@@ -70,7 +73,9 @@
 #include "fdeep/layers/time_distributed_layer.hpp"
 #include "fdeep/layers/upsampling_1d_layer.hpp"
 #include "fdeep/layers/upsampling_2d_layer.hpp"
+#include "fdeep/layers/upsampling_3d_layer.hpp"
 #include "fdeep/layers/zero_padding_2d_layer.hpp"
+#include "fdeep/layers/zero_padding_3d_layer.hpp"
 #include "fdeep/tensor_shape.hpp"
 #include "fdeep/tensor_shape_variable.hpp"
 #include "fdeep/tensor.hpp"
@@ -252,6 +257,8 @@ inline int create_int(const nlohmann::json& int_data)
 
 inline float_vec decode_floats(const nlohmann::json& data)
 {
+    
+    
     assertion(data.is_array() || data.is_string(),
         "invalid float array format");
 
@@ -400,6 +407,37 @@ inline layer_ptr create_conv_2d_layer(const get_param_f& get_param,
         dilation_rate, weights, bias);
 }
 
+inline layer_ptr create_conv_3d_layer(const get_param_f& get_param,
+    const nlohmann::json& data,
+    const std::string& name)
+{
+    const std::string padding_str = data["config"]["padding"];
+    const auto pad_type = create_padding(padding_str);
+
+    const shape3 strides = create_shape3(data["config"]["strides"]);
+    const shape3 dilation_rate = create_shape3(data["config"]["dilation_rate"]);
+
+    const auto filter_count = create_size_t(data["config"]["filters"]);
+    float_vec bias(filter_count, 0);
+    const bool use_bias = data["config"]["use_bias"];
+    if (use_bias)
+        bias = decode_floats(get_param(name, "bias"));
+    assertion(bias.size() == filter_count, "size of bias does not match");
+
+    const float_vec weights = decode_floats(get_param(name, "weights"));
+    const shape3 kernel_size = create_shape3(data["config"]["kernel_size"]);
+    assertion(weights.size() % kernel_size.area() == 0,
+        "invalid number of weights");
+    const std::size_t filter_depths =
+        weights.size() / (kernel_size.area() * filter_count);
+    const tensor_shape filter_shape(
+        kernel_size.height_, kernel_size.width_, kernel_size.depth_, filter_depths);
+
+    return std::make_shared<conv_3d_layer>(name,
+        filter_shape, filter_count, strides, pad_type,
+        dilation_rate, weights, bias);
+}
+
 inline layer_ptr create_separable_conv_2D_layer(const get_param_f& get_param,
     const nlohmann::json& data,
     const std::string& name)
@@ -514,6 +552,19 @@ inline layer_ptr create_max_pooling_2d_layer(
         pool_size, strides, channels_first, pad_type);
 }
 
+inline layer_ptr create_max_pooling_3d_layer(
+    const get_param_f&, const nlohmann::json& data,
+    const std::string& name)
+{
+    const auto pool_size = create_shape3(data["config"]["pool_size"]);
+    const auto strides = create_shape3(data["config"]["strides"]);
+    const bool channels_first = json_object_get(data["config"], "data_format", std::string("channels_last")) == "channels_first";
+    const std::string padding_str = data["config"]["padding"];
+    const auto pad_type = create_padding(padding_str);
+    return std::make_shared<max_pooling_3d_layer>(name,
+        pool_size, strides, channels_first, pad_type);
+}
+
 inline layer_ptr create_average_pooling_2d_layer(
     const get_param_f&, const nlohmann::json& data,
     const std::string& name)
@@ -597,6 +648,16 @@ inline layer_ptr create_upsampling_2d_layer(
     const auto scale_factor = create_shape2(data["config"]["size"]);
     const std::string interpolation = data["config"]["interpolation"];
     return std::make_shared<upsampling_2d_layer>(
+        name, scale_factor, interpolation);
+}
+
+inline layer_ptr create_upsampling_3d_layer(
+    const get_param_f&, const nlohmann::json& data,
+    const std::string& name)
+{
+    const auto scale_factor = create_shape3(data["config"]["size"]);
+    const std::string interpolation = "nearest"; // only nearest interpolation available; see keras manual
+    return std::make_shared<upsampling_3d_layer>(
         name, scale_factor, interpolation);
 }
 
@@ -695,6 +756,42 @@ inline layer_ptr create_zero_padding_2d_layer(
         const std::size_t right_pad = padding[1][1];
         return std::make_shared<zero_padding_2d_layer>(name,
             top_pad, bottom_pad, left_pad, right_pad);
+    }
+}
+
+inline layer_ptr create_zero_padding_3d_layer(
+    const get_param_f&, const nlohmann::json& data,
+    const std::string& name)
+{
+    const auto padding =
+        create_vector<std::vector<std::size_t>>(fplus::bind_1st_of_2(
+            create_vector<std::size_t, decltype(create_size_t)>, create_size_t),
+            data["config"]["padding"]);
+
+    assertion(padding.size() == 3 && padding[0].size() == padding[1].size() && padding[1].size()  == padding[2].size(),
+        "invalid padding format");
+
+    if (padding[0].size() == 1)
+    {
+        const std::size_t top_pad = 0;
+        const std::size_t bottom_pad = 0;
+        const std::size_t left_pad = padding[0][0];
+        const std::size_t right_pad = padding[1][0];
+        const std::size_t front_pad = padding[2][0];
+        const std::size_t back_pad = padding[3][0];
+        return std::make_shared<zero_padding_3d_layer>(name,
+            top_pad, bottom_pad, left_pad, right_pad, front_pad, back_pad);
+    }
+    else
+    {
+        const std::size_t top_pad = padding[0][0];
+        const std::size_t bottom_pad = padding[0][1];
+        const std::size_t left_pad = padding[1][0];
+        const std::size_t right_pad = padding[1][1];
+        const std::size_t front_pad = padding[2][0];
+        const std::size_t back_pad = padding[2][1];
+        return std::make_shared<zero_padding_3d_layer>(name,
+            top_pad, bottom_pad, left_pad, right_pad, front_pad, back_pad);
     }
 }
 
@@ -1076,6 +1173,7 @@ inline layer_ptr create_layer(const get_param_f& get_param,
     const layer_creators default_creators = {
             {"Conv1D", create_conv_2d_layer},
             {"Conv2D", create_conv_2d_layer},
+            {"Conv3D", create_conv_3d_layer},
             {"SeparableConv1D", create_separable_conv_2D_layer},
             {"SeparableConv2D", create_separable_conv_2D_layer},
             {"DepthwiseConv2D", create_depthwise_conv_2D_layer},
@@ -1095,6 +1193,7 @@ inline layer_ptr create_layer(const get_param_f& get_param,
             {"ReLU", create_relu_layer_isolated},
             {"MaxPooling1D", create_max_pooling_2d_layer},
             {"MaxPooling2D", create_max_pooling_2d_layer},
+            {"MaxPooling3D", create_max_pooling_3d_layer},
             {"AveragePooling1D", create_average_pooling_2d_layer},
             {"AveragePooling2D", create_average_pooling_2d_layer},
             {"AveragePooling3D", create_average_pooling_3d_layer},
@@ -1104,6 +1203,7 @@ inline layer_ptr create_layer(const get_param_f& get_param,
             {"GlobalAveragePooling2D", create_global_average_pooling_2d_layer},
             {"UpSampling1D", create_upsampling_1d_layer},
             {"UpSampling2D", create_upsampling_2d_layer},
+            {"UpSampling3D", create_upsampling_3d_layer},
             {"Dense", create_dense_layer},
             {"Add", create_add_layer},
             {"Maximum", create_maximum_layer},
@@ -1114,6 +1214,7 @@ inline layer_ptr create_layer(const get_param_f& get_param,
             {"Flatten", create_flatten_layer},
             {"ZeroPadding1D", create_zero_padding_2d_layer},
             {"ZeroPadding2D", create_zero_padding_2d_layer},
+            {"ZeroPadding3D", create_zero_padding_3d_layer},
             {"Cropping1D", create_cropping_2d_layer},
             {"Cropping2D", create_cropping_2d_layer},
             {"Activation", create_activation_layer},
@@ -1220,6 +1321,8 @@ inline void check_test_outputs(float_type epsilon,
                                     std::string("test failed: ") +
                                     "output=" + fplus::show(i) + " " +
                                     "pos=" +
+                                    fplus::show(pos_dim_5) + "," +
+                                    fplus::show(pos_dim_4) + "," +
                                     fplus::show(y) + "," +
                                     fplus::show(x) + "," +
                                     fplus::show(z) + " " +

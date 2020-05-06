@@ -214,6 +214,10 @@ def prepare_filter_weights_conv_2d(weights):
     assert len(weights.shape) == 4
     return np.moveaxis(weights, [0, 1, 2, 3], [1, 2, 3, 0]).flatten()
 
+def prepare_filter_weights_conv_3d(weights):
+    """Change dimension order of 3d filter weights to the one used in fdeep"""
+    assert len(weights.shape) == 5
+    return np.moveaxis(weights, [0, 1, 2, 3, 4], [1, 2, 3, 4, 0]).flatten()
 
 def prepare_filter_weights_slice_conv_2d(weights):
     """Change dimension order of 2d filter weights to the one used in fdeep"""
@@ -262,6 +266,23 @@ def show_conv_2d_layer(layer):
         result['bias'] = encode_floats(bias)
     return result
 
+
+def show_conv_3d_layer(layer):
+    """Serialize Conv3D layer to dict"""
+    weights = layer.get_weights()
+    assert len(weights) == 1 or len(weights) == 2
+    assert len(weights[0].shape) == 5
+    weights_flat = prepare_filter_weights_conv_3d(weights[0])
+    assert layer.padding in ['valid', 'same']
+    assert len(layer.input_shape) == 5
+    assert layer.input_shape[0] in {None, 1}
+    result = {
+        'weights': encode_floats(weights_flat)
+    }
+    if len(weights) == 2:
+        bias = weights[1]
+        result['bias'] = encode_floats(bias)
+    return result
 
 def show_separable_conv_2d_layer(layer):
     """Serialize SeparableConv2D layer to dict"""
@@ -408,7 +429,7 @@ def transform_cudnn_weights(input_weights, recurrent_weights, n_gates):
 
 
 def show_cudnn_lstm_layer(layer):
-    """Serialize a GPU-trained LSTM layer to dict"""
+    """Serialize a GPU-ed LSTM layer to dict"""
     weights = layer.get_weights()
     if isinstance(layer.input, list):
         assert len(layer.input) in [1, 3]
@@ -507,6 +528,7 @@ def get_layer_functions_dict():
     return {
         'Conv1D': show_conv_1d_layer,
         'Conv2D': show_conv_2d_layer,
+        'Conv3D': show_conv_3d_layer,
         'SeparableConv2D': show_separable_conv_2d_layer,
         'DepthwiseConv2D': show_depthwise_conv_2d_layer,
         'BatchNormalization': show_batch_normalization_layer,

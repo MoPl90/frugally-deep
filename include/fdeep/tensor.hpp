@@ -616,7 +616,7 @@ inline tensor concatenate_tensors_dim5(const tensors& in)
                         for (std::size_t z = 0; z < t.shape().depth_; ++z)
                         {
                             result.set_ignore_rank(tensor_pos(out_dim5, dim4, y, x, z),
-                                t.get_ignore_rank(tensor_pos(dim5, dim4, y, x, z)));
+                            t.get_ignore_rank(tensor_pos(dim5, dim4, y, x, z)));
                         }
                     }
                 }
@@ -806,6 +806,36 @@ inline tensor dilate_tensor(const shape2& dilation_rate, const tensor& in)
                     x * dilation_rate.width_,
                     z),
                     in.get(tensor_pos(y, x, z)));
+            }
+        }
+    }
+    return result;
+}
+
+inline tensor dilate_tensor(const shape3& dilation_rate, const tensor& in)
+{
+    assertion(in.shape().rank() > 3, "Invalid rank for dilation");
+    if (dilation_rate == shape3(1, 1, 1))
+    {
+        return in;
+    }
+
+    tensor result(dilate_tensor_shape(dilation_rate, in.shape()), 0);
+    for (std::size_t dim4 = 0; dim4 < in.dim4(); ++dim4)
+    {
+        for (std::size_t y = 0; y < in.height(); ++y)
+        {
+            for (std::size_t x = 0; x < in.width(); ++x)
+            {
+                for (std::size_t z = 0; z < in.depth(); ++z)
+                {
+                    result.set(tensor_pos(
+                        dim4 * dilation_rate.height_,
+                        y * dilation_rate.width_,
+                        x * dilation_rate.depth_,
+                        z),
+                        in.get(tensor_pos(dim4, y, x, z)));
+                }
             }
         }
     }

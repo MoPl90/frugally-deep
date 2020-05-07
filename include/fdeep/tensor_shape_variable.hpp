@@ -9,6 +9,7 @@
 #include "fdeep/common.hpp"
 
 #include "fdeep/shape2.hpp"
+#include "fdeep/shape3.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -90,6 +91,25 @@ public:
     std::size_t rank() const
     {
         return rank_;
+    }
+    
+    std::vector<std::size_t> dimensions() const
+    {
+        std::size_t size_dim_5 = size_dim_5_.unsafe_get_just();
+        std::size_t size_dim_4 = size_dim_4_.unsafe_get_just();
+        std::size_t height = height_.unsafe_get_just();
+        std::size_t width = width_.unsafe_get_just();
+        std::size_t depth = depth_.unsafe_get_just();
+        
+        if (rank() == 5)
+            return {size_dim_5, size_dim_4, height, width, depth};
+        if (rank() == 4)
+            return {size_dim_4, height, width, depth};
+        if (rank() == 3)
+            return {height, width, depth};
+        if (rank() == 2)
+            return {width, depth};
+        return {depth};
     }
 
     fplus::maybe<std::size_t> size_dim_5_;

@@ -786,6 +786,34 @@ inline tensor crop_tensor(
     return result;
 }
 
+inline tensor crop_tensor3D(
+    std::size_t top_crop, std::size_t bottom_crop,
+    std::size_t left_crop, std::size_t right_crop,
+    std::size_t front_crop, std::size_t back_crop,
+    const tensor& in)
+{
+    tensor result(tensor_shape_with_changed_rank(tensor_shape(
+        in.shape().size_dim_4_ - (top_crop + bottom_crop),
+        in.shape().height_ - (left_crop + right_crop),
+        in.shape().width_ - (front_crop + back_crop),
+        in.shape().depth_), in.shape().rank()), 0);
+    for (std::size_t dim4 = 0; dim4 < result.shape().size_dim_4_; ++dim4)
+    {
+        for (std::size_t y = 0; y < result.shape().height_; ++y)
+        {
+            for (std::size_t x = 0; x < result.shape().width_; ++x)
+            {
+                for (std::size_t z = 0; z < result.shape().depth_; ++z)
+                {
+                    result.set_ignore_rank(tensor_pos(dim4, y, x, z),
+                        in.get_ignore_rank(tensor_pos(dim4 + top_crop, y + left_crop, x + front_crop, z)));
+                }
+            }
+        }
+    }
+    return result;
+}
+
 inline tensor dilate_tensor(const shape2& dilation_rate, const tensor& in)
 {
     assertion(in.shape().rank() <= 3, "Invalid rank for dilation");

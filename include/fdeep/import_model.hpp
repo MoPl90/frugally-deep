@@ -35,6 +35,8 @@
 #include "fdeep/layers/concatenate_layer.hpp"
 #include "fdeep/layers/conv_2d_layer.hpp"
 #include "fdeep/layers/conv_3d_layer.hpp"
+#include "fdeep/layers/conv_2d_transpose_layer.hpp"
+#include "fdeep/layers/conv_3d_transpose_layer.hpp"
 #include "fdeep/layers/cropping_2d_layer.hpp"
 #include "fdeep/layers/cropping_3d_layer.hpp"
 #include "fdeep/layers/dense_layer.hpp"
@@ -435,6 +437,69 @@ inline layer_ptr create_conv_3d_layer(const get_param_f& get_param,
         kernel_size.height_, kernel_size.width_, kernel_size.depth_, filter_depths);
 
     return std::make_shared<conv_3d_layer>(name,
+        filter_shape, filter_count, strides, pad_type,
+        dilation_rate, weights, bias);
+}
+
+
+inline layer_ptr create_conv_2d_transpose_layer(const get_param_f& get_param,
+    const nlohmann::json& data,
+    const std::string& name)
+{
+    const std::string padding_str = data["config"]["padding"];
+    const auto pad_type = create_padding(padding_str);
+
+    const shape2 strides = create_shape2(data["config"]["strides"]);
+    const shape2 dilation_rate = create_shape2(data["config"]["dilation_rate"]);
+
+    const auto filter_count = create_size_t(data["config"]["filters"]);
+    float_vec bias(filter_count, 0);
+    const bool use_bias = data["config"]["use_bias"];
+    if (use_bias)
+        bias = decode_floats(get_param(name, "bias"));
+    assertion(bias.size() == filter_count, "size of bias does not match");
+
+    const float_vec weights = decode_floats(get_param(name, "weights"));
+    const shape2 kernel_size = create_shape2(data["config"]["kernel_size"]);
+    assertion(weights.size() % kernel_size.area() == 0,
+        "invalid number of weights");
+    const std::size_t filter_depths =
+        weights.size() / (kernel_size.area() * filter_count);
+    const tensor_shape filter_shape(
+        kernel_size.height_, kernel_size.width_, filter_depths);
+
+    return std::make_shared<conv_2d_transpose_layer>(name,
+        filter_shape, filter_count, strides, pad_type,
+        dilation_rate, weights, bias);
+}
+
+inline layer_ptr create_conv_3d_transpose_layer(const get_param_f& get_param,
+    const nlohmann::json& data,
+    const std::string& name)
+{
+    const std::string padding_str = data["config"]["padding"];
+    const auto pad_type = create_padding(padding_str);
+
+    const shape3 strides = create_shape3(data["config"]["strides"]);
+    const shape3 dilation_rate = shape3(1,1,1);//create_shape3(data["config"]["dilation_rate"]);
+
+    const auto filter_count = create_size_t(data["config"]["filters"]);
+    float_vec bias(filter_count, 0);
+    const bool use_bias = data["config"]["use_bias"];
+    if (use_bias)
+        bias = decode_floats(get_param(name, "bias"));
+    assertion(bias.size() == filter_count, "size of bias does not match");
+
+    const float_vec weights = decode_floats(get_param(name, "weights"));
+    const shape3 kernel_size = create_shape3(data["config"]["kernel_size"]);
+    assertion(weights.size() % kernel_size.area() == 0,
+        "invalid number of weights");
+    const std::size_t filter_depths =
+        weights.size() / (kernel_size.area() * filter_count);
+    const tensor_shape filter_shape(
+        kernel_size.height_, kernel_size.width_, kernel_size.depth_, filter_depths);
+
+    return std::make_shared<conv_3d_transpose_layer>(name,
         filter_shape, filter_count, strides, pad_type,
         dilation_rate, weights, bias);
 }
@@ -1184,6 +1249,8 @@ inline layer_ptr create_layer(const get_param_f& get_param,
             {"Conv1D", create_conv_2d_layer},
             {"Conv2D", create_conv_2d_layer},
             {"Conv3D", create_conv_3d_layer},
+            {"Conv2DTranspose", create_conv_2d_transpose_layer},
+            {"Conv3DTranspose", create_conv_3d_transpose_layer},
             {"SeparableConv1D", create_separable_conv_2D_layer},
             {"SeparableConv2D", create_separable_conv_2D_layer},
             {"DepthwiseConv2D", create_depthwise_conv_2D_layer},

@@ -284,6 +284,44 @@ def show_conv_3d_layer(layer):
         result['bias'] = encode_floats(bias)
     return result
 
+
+def show_conv_2d_transpose_layer(layer):
+    """Serialize ConvTranspose2D layer to dict"""
+    weights = layer.get_weights()
+    assert len(weights) == 1 or len(weights) == 2
+    assert len(weights[0].shape) == 4
+    weights_flat = prepare_filter_weights_conv_2d(weights[0])
+    assert layer.padding in ['valid', 'same']
+    assert len(layer.input_shape) == 4
+    assert layer.input_shape[0] in {None, 1}
+    result = {
+        'weights': encode_floats(weights_flat)
+    }
+    if len(weights) == 2:
+        bias = weights[1]
+        result['bias'] = encode_floats(bias)
+    return result
+
+
+def show_conv_3d_transpose_layer(layer):
+    """Serialize ConvTranspose3D layer to dict"""
+    weights = layer.get_weights()
+    assert len(weights) == 1 or len(weights) == 2
+    assert len(weights[0].shape) == 5
+    weights_flat = prepare_filter_weights_conv_3d(weights[0])
+    assert layer.padding in ['valid', 'same']
+    assert len(layer.input_shape) == 5
+    assert layer.input_shape[0] in {None, 1}
+    result = {
+        'weights': encode_floats(weights_flat)
+    }
+    if len(weights) == 2:
+        bias = weights[1]
+        result['bias'] = encode_floats(bias)
+    return result
+
+
+
 def show_separable_conv_2d_layer(layer):
     """Serialize SeparableConv2D layer to dict"""
     weights = layer.get_weights()
@@ -529,6 +567,9 @@ def get_layer_functions_dict():
         'Conv1D': show_conv_1d_layer,
         'Conv2D': show_conv_2d_layer,
         'Conv3D': show_conv_3d_layer,
+        'Conv1DTranspose': show_conv_2d_transpose_layer,
+        'Conv2DTranspose': show_conv_2d_transpose_layer,
+        'Conv3DTranspose': show_conv_3d_transpose_layer,
         'SeparableConv2D': show_separable_conv_2d_layer,
         'DepthwiseConv2D': show_depthwise_conv_2d_layer,
         'BatchNormalization': show_batch_normalization_layer,

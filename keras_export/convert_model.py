@@ -845,7 +845,7 @@ def convert(in_path, out_path, no_tests=False):
     """Convert any (h5-)stored Keras model to the frugally-deep model format."""
 
     print('loading {}'.format(in_path))
-    model = load_model(in_path)
+    model = load_model(in_path, compile=False)
     json_output = model_to_fdeep_json(model, no_tests)
     print('writing {}'.format(out_path))
     write_text_file(out_path, json.dumps(

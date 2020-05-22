@@ -68,7 +68,7 @@ inline void assertion(bool cond, const std::string& error)
 #ifdef FDEEP_FLOAT_TYPE
     typedef FDEEP_FLOAT_TYPE float_type;
 #else
-    typedef float float_type;
+    typedef double float_type;
 #endif
 
 #if EIGEN_VERSION_AT_LEAST(3,3,0)

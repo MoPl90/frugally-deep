@@ -58,6 +58,7 @@ inline im2col_filter_matrix generate_im2col_filter_matrix(
     return {b, filters.front().shape(), filters.size()};
 }
 
+
 inline im2col_filter_matrix generate_im2col_single_filter_matrix(
     const filter& filter)
 {
@@ -79,30 +80,34 @@ inline tensor convolve_im2col(
     const auto fy = filter_mat.filter_shape_.height_;
     const auto fx = filter_mat.filter_shape_.width_;
     const auto fz = filter_mat.filter_shape_.depth_;
-    ColMajorMatrixXf a(fy * fx * fz + 1, out_height * out_width);
-    EigenIndex a_x = 0;
-    for (std::size_t y = 0; y < out_height; ++y)
-    {
-        for (std::size_t x = 0; x < out_width; ++x)
+        ColMajorMatrixXf a(fy * fx * fz + 1, out_height * out_width);
+        EigenIndex a_x = 0;
+        for (std::size_t y = 0; y < out_height; ++y)
         {
-            EigenIndex a_y = 0;
-            for (std::size_t yf = 0; yf < fy; ++yf)
+            for (std::size_t x = 0; x < out_width; ++x)
             {
-                for (std::size_t xf = 0; xf < fx; ++xf)
+                EigenIndex a_y = 0;
+                for (std::size_t yf = 0; yf < fy; ++yf)
                 {
-                    for (std::size_t zf = 0; zf < fz; ++zf)
+                    for (std::size_t xf = 0; xf < fx; ++xf)
                     {
-                        a(a_y++, a_x) = in_padded.get_ignore_rank(tensor_pos(
-                                strides_y * y + yf,
-                                strides_x * x + xf,
-                                zf));
+                        for (std::size_t zf = 0; zf < fz; ++zf)
+                        {
+                            a(a_y++, a_x) = in_padded.get_ignore_rank(tensor_pos(
+                                    strides_y * y + yf,
+                                    strides_x * x + xf,
+                                    zf));
+                        }
                     }
+                    a(a_y, a_x) = static_cast<float_type>(1);
                 }
-                a(a_y, a_x) = static_cast<float_type>(1);
+                ++a_x;
             }
-            ++a_x;
         }
-    }
+    
+//    ColMajorMatrixXf a(filters_mat.mat_.cols(), out_height * out_width);
+//        EigenIndex a_x = 0;
+        
 
     const std::size_t val_cnt =
         static_cast<std::size_t>(filter_mat.mat_.rows() * a.cols());

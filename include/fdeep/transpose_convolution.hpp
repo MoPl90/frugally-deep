@@ -44,8 +44,8 @@ inline tensor convolve_im2col_transpose(
                     for (std::size_t zf = 0; zf < fz; ++zf)
                     {
                         a(a_y++, a_x) = in_padded.get_ignore_rank(tensor_pos(
-                                fplus::floor(static_cast<float>(y) / strides_y + 0.001) + yf,
-                                fplus::floor(static_cast<float>(x) / strides_x + 0.001) + xf,
+                                y + yf,
+                                x + xf,
                                 zf));
                     }
                 }
@@ -114,10 +114,10 @@ inline tensor convolve_vol2col_transpose(
                             for (std::size_t c = 0; c < fz; ++c)
                             {
                                 a(a_y++, a_x) = in_padded.get_ignore_rank(tensor_pos(
-                                fplus::floor(static_cast<float>(y) / strides_y + 0.001) + yf,
-                                fplus::floor(static_cast<float>(x) / strides_x + 0.001) + xf,
-                                fplus::floor(static_cast<float>(z) / strides_z + 0.001) + zf,
-                                        c));
+                                y + yf,
+                                x + xf,
+                                z + zf,
+                                c));
                             }
                         }
                         a(a_y, a_x) = static_cast<float_type>(1);
@@ -190,30 +190,16 @@ inline convolution_config preprocess_transpose_convolution(
     int pad_left = 0;
     int pad_right = 0;
 
-    if (pad_type == padding::same)
-    {
-        int pad_along_height = 0;
-        int pad_along_width = 0;
+    
 
-        if (in_height % strides_y == 0)
-            pad_along_height = std::max(filter_height - strides_y, 0);
-        else
-            pad_along_height = std::max(filter_height - (in_height % strides_y), 0);
-        if (in_width % strides_x == 0)
-            pad_along_width = std::max(filter_width - strides_x, 0);
-        else
-            pad_along_width = std::max(filter_width - (in_width % strides_x), 0);
+//    ConvT as a padded and dilated Conv: all padding types require the same padding: https://github.com/tensorflow/tensorflow/blob/a0d784bdd31b27e013a7eac58a86ba62e86db299/tensorflow/core/kernels/conv_grad_ops.h#L31
+    int pad_along_height = filter_height - 1;
+    int pad_along_width = filter_width - 1;
 
-        pad_top = pad_along_height / 2;
-        pad_bottom = pad_along_height - pad_top;
-        pad_left = pad_along_width / 2;
-        pad_right = pad_along_width - pad_left;
-    }
-    else if (pad_type == padding::causal)
-    {
-        pad_top = filter_height - 1;
-        pad_left = filter_width - 1;
-    }
+    pad_top = pad_along_height / 2;
+    pad_bottom = pad_along_height - pad_top;
+    pad_left = pad_along_width / 2;
+    pad_right = pad_along_width - pad_left;
     
     std::size_t out_height_size_t = fplus::integral_cast_throw<std::size_t>(out_height);
     std::size_t out_width_size_t = fplus::integral_cast_throw<std::size_t>(out_width);
@@ -222,7 +208,6 @@ inline convolution_config preprocess_transpose_convolution(
     std::size_t pad_left_size_t = fplus::integral_cast_throw<std::size_t>(pad_left);
     std::size_t pad_right_size_t = fplus::integral_cast_throw<std::size_t>(pad_right);
 
-//    std::cout << "Pad top: " << pad_top << ", pad left: " << pad_left << ", out_size: " << out_height << "x" << out_width << std::endl;
     return {pad_top_size_t, pad_bottom_size_t,
         pad_left_size_t, pad_right_size_t,
         out_height_size_t, out_width_size_t};
@@ -265,6 +250,8 @@ inline convolution_config3D preprocess_transpose_convolution3D(
         out_depth = strides_z * in_depth + filter_depth - strides_z;
     }
 
+    
+//    ConvT as a padded and dilated Conv: all padding types require the same padding: https://github.com/tensorflow/tensorflow/blob/a0d784bdd31b27e013a7eac58a86ba62e86db299/tensorflow/core/kernels/conv_grad_ops.h#L31
     int pad_top = 0;
     int pad_bottom = 0;
     int pad_left = 0;
@@ -272,39 +259,17 @@ inline convolution_config3D preprocess_transpose_convolution3D(
     int pad_front = 0;
     int pad_back = 0;
 
-    if (pad_type == padding::same)
-    {
-        int pad_along_height = 0;
-        int pad_along_width = 0;
-        int pad_along_depth = 0;
+    int pad_along_height = filter_height - 1;
+    int pad_along_width = filter_width - 1;
+    int pad_along_depth = filter_depth - 1;
+    
+    pad_top = pad_along_height / 2;
+    pad_bottom = pad_along_height - pad_top;
+    pad_left = pad_along_width / 2;
+    pad_right = pad_along_width - pad_left;
+    pad_front = pad_along_depth / 2;
+    pad_back = pad_along_depth - pad_front;
 
-        if (in_height % strides_y == 0)
-            pad_along_height = std::max(filter_height - strides_y, 0);
-        else
-            pad_along_height = std::max(filter_height - (in_height % strides_y), 0);
-        if (in_width % strides_x == 0)
-            pad_along_width = std::max(filter_width - strides_x, 0);
-        else
-            pad_along_width = std::max(filter_width - (in_width % strides_x), 0);
-        if (in_depth % strides_z == 0)
-            pad_along_depth = std::max(filter_depth - strides_z, 0);
-        else
-            pad_along_depth = std::max(filter_depth - (in_depth % strides_z), 0);
-
-        pad_top = pad_along_height / 2;
-        pad_bottom = pad_along_height - pad_top;
-        pad_left = pad_along_width / 2;
-        pad_right = pad_along_width - pad_left;
-        pad_front = pad_along_depth / 2;
-        pad_back = pad_along_depth - pad_front;
-    }
-    else if (pad_type == padding::causal)
-    {
-        pad_top = filter_height - 1;
-        pad_left = filter_width - 1;
-        pad_front = filter_depth - 1;
-
-    }
 
     std::size_t out_height_size_t = fplus::integral_cast_throw<std::size_t>(out_height);
     std::size_t out_width_size_t = fplus::integral_cast_throw<std::size_t>(out_width);
@@ -338,15 +303,21 @@ inline tensor transpose_convolve(
 
     const std::size_t out_height = conv_cfg.out_height_;
     const std::size_t out_width = conv_cfg.out_width_;
-
+    
+    
     const auto in_padded = pad_tensor(0,
         conv_cfg.pad_top_, conv_cfg.pad_bottom_, conv_cfg.pad_left_, conv_cfg.pad_right_,
         input);
-
+//    std::cout << "shape after padding: " << in_padded.height() << std::endl;
+    
+    shape2 dilate_shape(strides.height_, strides.width_);
+    tensor in_dilated = dilate_tensor(dilate_shape, in_padded);
+    
+//    std::cout << "shape after dilating: " << in_dilated.height() <<  std::endl;
     return convolve_im2col_transpose(
         out_height, out_width,
         strides.height_, strides.width_,
-        filter_mat, in_padded);
+        filter_mat, in_dilated);
 }
 
 inline tensor transpose_convolve3D(
@@ -365,17 +336,22 @@ inline tensor transpose_convolve3D(
     const std::size_t out_height = conv_cfg.out_height_;
     const std::size_t out_width = conv_cfg.out_width_;
     const std::size_t out_depth = conv_cfg.out_depth_;
-
+    
+    
     const auto in_padded = pad_tensor3D(0,
                                         conv_cfg.pad_top_, conv_cfg.pad_bottom_,
                                         conv_cfg.pad_left_, conv_cfg.pad_right_,
                                         conv_cfg.pad_front_, conv_cfg.pad_back_,
                                         input);
-
+    
+    shape3 dilate_shape(strides.height_, strides.width_, strides.depth_);
+    tensor in_dilated = dilate_tensor(dilate_shape, in_padded);
+    
+    
     return convolve_vol2col_transpose(
         out_height, out_width, out_depth,
         strides.height_, strides.width_, strides.depth_,
-        filter_mat, in_padded);
+        filter_mat, in_dilated);
 }
 
 

@@ -29,7 +29,7 @@ cmake -DBUILD_TESTING=OFF ..
 make && sudo make install
 cd ../..
 
-git clone https://github.com/Dobiasd/frugally-deep
+git clone https://github.com/MoPl90/frugally-deep
 cd frugally-deep
 mkdir -p build && cd build
 cmake ..

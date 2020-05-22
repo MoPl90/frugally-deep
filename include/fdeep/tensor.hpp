@@ -442,6 +442,11 @@ inline tensor_pos tensor_max_pos(const tensor& vol)
     return tensor_min_max_pos(vol).second;
 }
 
+inline tensor_pos tensor_min_pos(const tensor& vol)
+{
+    return tensor_min_max_pos(vol).first;
+}
+
 inline tensor concatenate_tensors_depth(const tensors& in)
 {
     const auto shape_sizes = get_tensors_shape_sizes(in);
@@ -1031,7 +1036,7 @@ inline tensor tensor_from_bytes(const std::uint16_t* value_ptr,
     {
         return fplus::reference_interval(low, high,
             static_cast<float_type>(0.0f),
-            static_cast<float_type>(65635.0f),
+            static_cast<float_type>(65535.0f),
             static_cast<internal::float_type>(b));
     }, bytes);
     if (depth == 1)
@@ -1059,7 +1064,7 @@ inline void tensor_into_bytes(const tensor& t, std::uint16_t* value_ptr,
         return fplus::round<internal::float_type, std::uint16_t>(
             fplus::reference_interval(
                 static_cast<float_type>(0.0f),
-                static_cast<float_type>(65635.0f), low, high, v));
+                static_cast<float_type>(65535.0f), low, high, v));
     }, *values);
     for (std::size_t i = 0; i < values->size(); ++i)
     {
@@ -1099,6 +1104,35 @@ inline tensors_vec reshape_tensor_vectors(
         fplus::split_every(depth * height * width, values));
 
     return fplus::split_every(vector_size, ts);
+}
+
+inline tensor argmax_along_depth(tensor in)
+{
+
+    tensor result(change_tensor_shape_dimension_by_index(in.shape(), in.shape().rank(), 1),-1);
+    
+    for (std::size_t dim5 = 0; dim5 < in.shape().size_dim_5_; ++dim5, ++dim5)
+    {
+        for (std::size_t dim4 = 0; dim4 < in.shape().size_dim_4_; ++dim4)
+        {
+            for (std::size_t y = 0; y < in.shape().height_; ++y)
+            {
+                for (std::size_t x = 0; x < in.shape().width_; ++x)
+                {
+                    int z_out = 0;
+                    for (std::size_t z = 0; z < in.shape().depth_; ++z)
+                    {
+                        const auto tmp_pos = tensor_pos(dim5, dim4, y, x, z);                        if (in.get_ignore_rank(tmp_pos) > in.get_ignore_rank(tensor_pos(dim5, dim4, y, x, z_out)))
+                        {
+                            z_out = z;
+                        }
+                    }
+                    result.set_ignore_rank(tensor_pos(dim5, dim4, y, x, 0), z_out);
+                }
+            }
+        }
+    }
+    return result;
 }
 
 } // namespace fdeep

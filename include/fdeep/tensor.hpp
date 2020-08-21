@@ -1029,14 +1029,16 @@ inline tensor tensor_from_bytes(const std::uint16_t* value_ptr,
     std::size_t depth = 1,
     internal::float_type low = 0.0f, internal::float_type high = 1.0f)
 {
+    const std::uint16_t max_val = *std::max_element(value_ptr, value_ptr + height * width * depth * channels);
+
     const std::vector<std::uint16_t> bytes(
         value_ptr, value_ptr + height * width * depth * channels);
     auto values = fplus::transform_convert<float_vec>(
-        [low, high](std::uint16_t b) -> internal::float_type
+        [low, high, max_val](std::uint16_t b) -> internal::float_type
     {
         return fplus::reference_interval(low, high,
             static_cast<float_type>(0.0f),
-            static_cast<float_type>(65535.0f),
+            static_cast<float_type>(max_val),
             static_cast<internal::float_type>(b));
     }, bytes);
     if (depth == 1)
@@ -1056,15 +1058,17 @@ inline void tensor_into_bytes(const tensor& t, std::uint16_t* value_ptr,
     internal::float_type low = 0.0f, internal::float_type high = 1.0f)
 {
     const auto values = t.as_vector();
+    const std::uint16_t max_val = *std::max_element(values->begin(), values->end());
+
     internal::assertion(bytes_available == values->size(),
     "invalid buffer size");
     const auto bytes = fplus::transform(
-        [low, high](internal::float_type v) -> std::uint16_t
+        [low, high, max_val](internal::float_type v) -> std::uint16_t
     {
         return fplus::round<internal::float_type, std::uint16_t>(
             fplus::reference_interval(
                 static_cast<float_type>(0.0f),
-                static_cast<float_type>(65535.0f), low, high, v));
+                static_cast<float_type>(max_val), low, high, v));
     }, *values);
     for (std::size_t i = 0; i < values->size(); ++i)
     {

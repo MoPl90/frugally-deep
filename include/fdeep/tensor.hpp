@@ -1126,7 +1126,8 @@ inline tensor argmax_along_depth(tensor in)
                     int z_out = 0;
                     for (std::size_t z = 0; z < in.shape().depth_; ++z)
                     {
-                        const auto tmp_pos = tensor_pos(dim5, dim4, y, x, z);                        if (in.get_ignore_rank(tmp_pos) > in.get_ignore_rank(tensor_pos(dim5, dim4, y, x, z_out)))
+                        const auto tmp_pos = tensor_pos(dim5, dim4, y, x, z);
+                        if (in.get_ignore_rank(tmp_pos) > in.get_ignore_rank(tensor_pos(dim5, dim4, y, x, z_out)))
                         {
                             z_out = z;
                         }
